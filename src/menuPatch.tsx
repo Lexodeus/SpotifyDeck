@@ -2,7 +2,7 @@
 import { afterPatch, findInReactTree, getReactRoot } from "@decky/ui";
 import { FC, ReactElement, ReactNode } from "react";
 import { FaSpotify } from "react-icons/fa";
-import { closeSpotify, settings, useSettings, useSpotifyState } from "./backend";
+import { closeSpotify, settings, useSpotifyState } from "./backend";
 import { isMenuEntry, placePositionedMenuItems } from "./menuOrder";
 import { routePath } from "./routes";
 
@@ -94,6 +94,10 @@ export function patchMenu() {
   };
 }
 
+// Spotify green mixed 50/50 with the menu's icon grey rgb(184, 188, 191). No CSS filter (e.g. a drop-shadow glow):
+// Steam's renderer hangs repainting a filtered icon when the Steam menu opens over Spotify.
+const runningIconStyle = { color: "#6bca90" };
+
 interface SpotifyMenuItemProps extends MainMenuItemProps {
   menuPosition: number;
   MenuItemComponent: FC<MainMenuItemProps>;
@@ -102,20 +106,7 @@ interface SpotifyMenuItemProps extends MainMenuItemProps {
 
 const SpotifyMenuItem: FC<SpotifyMenuItemProps> = ({ MenuItemComponent, useIconAsProp, menuPosition: _, ...props }) => {
   const { running } = useSpotifyState();
-  const t = useSettings().indicatorBrightness / 100;
-  // A glow alone is hard to see against the menu, so the icon itself lights up too. 100% is full Spotify green.
-  const icon = (
-    <FaSpotify
-      style={
-        running && t > 0
-          ? {
-              color: `color-mix(in srgb, #1ed760 ${t * 100}%, currentColor)`,
-              filter: `drop-shadow(rgba(30, 215, 96, ${t}) 0px 0px 3px) drop-shadow(rgba(30, 215, 96, ${t}) 0px 0px 8px)`,
-            }
-          : {}
-      }
-    />
-  );
+  const icon = <FaSpotify style={running ? runningIconStyle : {}} />;
 
   return (
     <MenuItemComponent

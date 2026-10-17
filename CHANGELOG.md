@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 (2026-10-16)
+
+- Spotify's icon in the Steam menu now just turns green while Spotify is running, without a glow. The Menu icon glow setting is gone.
+
+### Fixes
+
+- Pressing the Steam button while Spotify is on screen no longer freezes Steam.
+
 ## 0.1.1 (2026-10-16)
 
 - Audio Loader's menu music pauses while Spotify is running, and comes back when you close Spotify.

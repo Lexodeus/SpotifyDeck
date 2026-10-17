@@ -54,33 +54,10 @@ export const LAST_MENU_POSITION = 99;
 
 export const settings = {
   menuPosition: LAST_MENU_POSITION,
-  // 0–100: how brightly the Steam menu icon lights up while Spotify runs
-  indicatorBrightness: 50,
 };
-const settingsListeners = new Set<() => void>();
-const notifySettings = () => settingsListeners.forEach((listener) => listener());
-
-/** Re-renders when a setting changes, e.g. so the menu icon follows the brightness slider. */
-export function useSettings() {
-  const [, setVersion] = useState(0);
-  useEffect(() => {
-    const listener = () => setVersion((version) => version + 1);
-    settingsListeners.add(listener);
-    return () => void settingsListeners.delete(listener);
-  }, []);
-  return settings;
-}
 
 export async function loadSettings() {
   settings.menuPosition = await getSetting("menuPosition", LAST_MENU_POSITION);
-  settings.indicatorBrightness = await getSetting("indicatorBrightness", 50);
-  notifySettings();
-}
-
-export async function setIndicatorBrightness(brightness: number) {
-  settings.indicatorBrightness = brightness;
-  notifySettings();
-  await setSetting("indicatorBrightness", brightness);
 }
 
 export async function setMenuPosition(position: number) {
