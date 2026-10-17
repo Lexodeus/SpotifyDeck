@@ -10,6 +10,7 @@ FLATPAK_APP = "com.spotify.Client"
 GAMESCOPE_APP_ID = 0x53504F54
 STEAM_APP_ID = 769
 WINDOW_WAIT_SECONDS = 45
+RUNNING_POLL_SECONDS = 3
 
 SETTINGS_FILE = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")
 
@@ -63,6 +64,11 @@ async def run(*args: str) -> tuple[int, str]:
     return proc.returncode or 0, out.decode(errors="replace").strip()
 
 
+async def is_running() -> bool:
+    _, out = await run("flatpak", "ps", "--columns=application")
+    return FLATPAK_APP in out.split()
+
+
 async def read_root_cardinals(prop: str) -> list[int]:
     _, out = await run("xprop", "-root", prop)
     return parse_cardinals(out)
@@ -92,16 +98,47 @@ class Plugin:
         self.lock = asyncio.Lock()
         self.show_task: asyncio.Task | None = None
         self.watch_task: asyncio.Task | None = None
+        async with self.lock:
+            await self._release_stale_windows()
+        await self._watch_running()
+
+    async def _watch_running(self):
+        """Tells the frontend when Spotify starts or quits, including from outside the plugin."""
+        was_running = None
+        while True:
+            running = await is_running()
+            if running != was_running:
+                if was_running is not None:
+                    await self.emit_state()
+                was_running = running
+            await asyncio.sleep(RUNNING_POLL_SECONDS)
 
     async def _unload(self):
+        # Decky may stop the backend before a full hide() finishes, so give the screen back to Steam first
+        if self.shown_window is not None:
+            await set_root_window_focus(0)
         await self.hide()
+
+    async def _release_stale_windows(self):
+        """Releases windows a previous run left tagged, e.g. when Decky stopped it before it could clean up."""
+        if self.shown_window is not None:
+            return
+        focused = await read_root_cardinals("GAMESCOPECTRL_BASELAYER_WINDOW")
+        focusable = await read_root_cardinals("GAMESCOPE_FOCUSABLE_WINDOWS")
+        # Triplets of window, app ID, pid
+        for window, app_id in zip(focusable[0::3], focusable[1::3]):
+            if app_id != GAMESCOPE_APP_ID:
+                continue
+            if focused == [window]:
+                await set_root_window_focus(0)
+            await run("xprop", "-id", str(window), "-remove", "STEAM_GAME")
+            decky.logger.info(f"Released Spotify window {window} left over from a previous run")
 
     async def get_state(self) -> dict:
         installed = (await run("flatpak", "info", FLATPAK_APP))[0] == 0
-        _, running = await run("flatpak", "ps", "--columns=application")
         return {
             "installed": installed,
-            "running": FLATPAK_APP in running.split(),
+            "running": await is_running(),
             "launching": self.launching,
             "shown": self.shown_window is not None,
             "error": self.error,

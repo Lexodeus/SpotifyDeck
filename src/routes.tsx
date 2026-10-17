@@ -6,6 +6,7 @@ import { hideSpotify, setSteamOverlayOpen, showSpotify, useSpotifyState } from "
 export const routePath = "/spotify";
 
 interface History {
+  location?: { pathname: string };
   listen(listener: (location: { pathname: string }, action: "PUSH" | "POP" | "REPLACE") => void): () => void;
 }
 
@@ -51,6 +52,11 @@ export function watchNavigation() {
       hideSpotify();
     }
   });
+  // After a plugin reload Steam can still be on the Spotify page, with no navigation to tell us
+  if (history.location?.pathname === routePath) {
+    onSpotify = true;
+    showSpotify();
+  }
   const overlayTimer = setInterval(() => {
     if (!onSpotify) return;
     const open = isSteamOverlayOpen();
