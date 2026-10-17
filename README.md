@@ -1,0 +1,25 @@
+# SpotifyDeck
+
+Adds **Spotify** to the Steam menu in Gaming Mode. It opens the Spotify flatpak (`com.spotify.Client`, installed from Discover in Desktop Mode) without adding it to your library as a non-Steam game.
+
+- Pick **Spotify** in the Steam menu to open it. It starts Spotify first if it isn't running yet.
+- Press the Steam button and pick anything else to go back to Steam. Spotify keeps playing in the background.
+- Highlight Spotify in the Steam menu and press X to close it, or use Close Spotify in the Quick Access menu.
+- The Quick Access menu also sets where Spotify sits in the Steam menu.
+
+## How it works
+
+Gaming Mode's compositor (gamescope) only shows windows that belong to an app Steam launched. The plugin's backend starts Spotify in your user session and tags its window with a placeholder app ID. While Steam is on the plugin's Spotify page, the backend asks gamescope to show that window. When Steam navigates away, or brings a game to the front, it hands the screen back to Steam.
+
+## Requirements
+
+- Decky Loader 3 or newer
+- Spotify installed from Discover (Flathub `com.spotify.Client`)
+
+## Credits
+
+The Steam menu patch is adapted from [DeckWebBrowser](https://github.com/jessebofill/DeckWebBrowser) by Jesse Bofill (GPL-3.0).
+
+## License
+
+GPL-3.0

@@ -1,0 +1,16 @@
+{
+  "name": "SpotifyDeck",
+  "author": "Lexodeus",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": [
+      "music",
+      "spotify",
+      "flatpak"
+    ],
+    "description": "Adds Spotify to the Steam menu. Opens the Spotify app installed from Discover without adding it as a non-Steam game.",
+    "image": "https://raw.githubusercontent.com/Lexodeus/SpotifyDeck/master/assets/screenshot.png"
+  },
+  "Changelog": "## 0.1.0 (2026-10-16)\n\n- Adds Spotify to the Steam menu. Picking it opens the Spotify app installed from Discover, and starts it first if it isn't running.\n- Spotify no longer needs to be added as a non-Steam game, and doesn't take up a running game slot.\n- Spotify keeps playing in the background after you leave it with the Steam button, including while you play a game.\n- The Steam menu and Quick Access menu open over Spotify, so you can get back to Steam at any time.\n- Close Spotify by pressing X on its Steam menu entry, or with the Close Spotify button in the Quick Access menu.\n- Choose where Spotify sits in the Steam menu from the Quick Access menu."
+}
