@@ -11,6 +11,8 @@ GAMESCOPE_APP_ID = 0x53504F54
 STEAM_APP_ID = 769
 WINDOW_WAIT_SECONDS = 45
 RUNNING_POLL_SECONDS = 3
+# Time for Spotify to take keyboard focus again after it's brought back to the front
+REFOCUS_DELAY = 0.3
 
 SETTINGS_FILE = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")
 
@@ -36,6 +38,8 @@ def session_env() -> dict[str, str]:
     env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
     env["DISPLAY"] = ":0"
     env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+    # xdotool drops anything outside ASCII without a UTF-8 locale
+    env["LC_ALL"] = "C.UTF-8"
     # Copy the display and session bus from Steam itself, in case they aren't the defaults
     for pid in filter(str.isdigit, os.listdir("/proc")):
         try:
@@ -56,11 +60,12 @@ def session_env() -> dict[str, str]:
     return env
 
 
-async def run(*args: str) -> tuple[int, str]:
+async def run(*args: str, stdin: str | None = None) -> tuple[int, str]:
     proc = await asyncio.create_subprocess_exec(
-        *args, env=session_env(), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+        *args, env=session_env(), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+        stdin=asyncio.subprocess.PIPE if stdin is not None else asyncio.subprocess.DEVNULL,
     )
-    out, _ = await proc.communicate()
+    out, _ = await proc.communicate(stdin.encode() if stdin is not None else None)
     return proc.returncode or 0, out.decode(errors="replace").strip()
 
 
@@ -90,9 +95,12 @@ class Plugin:
     shown_window: int | None = None
     error: str | None = None
 
-    # Spotify window stepped aside while a Steam menu, modal or keyboard is open
+    # Spotify window stepped aside while a Steam menu, modal, keyboard or the text box is open
     lowered_window: int | None = None
     steam_overlay_open = False
+
+    # Text from the plugin's text box, typed into Spotify once it's back in front
+    pending_text: str | None = None
 
     async def _main(self):
         self.lock = asyncio.Lock()
@@ -165,6 +173,7 @@ class Plugin:
         async with self.lock:
             self.steam_overlay_open = False
             self.lowered_window = None
+            self.pending_text = None
             await self._unfocus()
         await self.emit_state()
 
@@ -183,7 +192,21 @@ class Plugin:
                 window, self.lowered_window = self.lowered_window, None
                 if await self._find_window() == window:
                     await self._focus(window)
+            await self._type_pending_text()
         await self.emit_state()
+
+    async def send_text(self, text: str):
+        """
+        Type text into Spotify's selected text field, as soon as Spotify is back in front.
+        No Enter afterwards: Spotify's search shows results as you type, and Enter in its quick search
+        opens whichever result is on top, which may not have caught up with the text yet.
+        """
+        text = " ".join(text.splitlines()).strip()
+        if not text:
+            return
+        async with self.lock:
+            self.pending_text = text
+            await self._type_pending_text()
 
     async def close(self):
         await self.hide()
@@ -242,6 +265,16 @@ class Plugin:
             await asyncio.sleep(0.5)
         raise RuntimeError("Spotify started, but its window never appeared")
 
+    async def _type_pending_text(self):
+        """Types the pending text if Spotify is in front. Call with the lock held."""
+        if self.pending_text is None or self.shown_window is None:
+            return
+        text, self.pending_text = self.pending_text, None
+        await asyncio.sleep(REFOCUS_DELAY)
+        # Typed through XTEST into whatever has keyboard focus, which is the window gamescope focused
+        await run("xdotool", "type", "--delay", "12", "--file", "-", stdin=text)
+        decky.logger.info(f"Typed {len(text)} characters into Spotify")
+
     async def _focus(self, window: int):
         await run("xprop", "-id", str(window), "-f", "STEAM_GAME", "32c", "-set", "STEAM_GAME", str(GAMESCOPE_APP_ID))
         await set_root_window_focus(window)
@@ -281,6 +314,7 @@ class Plugin:
                     async with self.lock:
                         self.watch_task = None
                         self.lowered_window = None
+                        self.pending_text = None
                         await self._unfocus()
                     await self.emit_state()
                     return

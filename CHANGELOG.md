@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 (2026-10-17)
+
+- Type into Spotify with Steam's keyboard: select a text field in Spotify, such as the search bar, press Steam + X, type in the text box that appears, and press Type. Accented letters and emoji work too.
+
 ## 0.1.2 (2026-10-16)
 
 - Spotify's icon in the Steam menu now just turns green while Spotify is running, without a glow. The Menu icon glow setting is gone.

@@ -12,5 +12,5 @@
     "description": "Adds Spotify to the Steam menu. Opens the Spotify app installed from Discover without adding it as a non-Steam game.",
     "image": "https://raw.githubusercontent.com/Lexodeus/SpotifyDeck/master/assets/screenshot.png"
   },
-  "Changelog": "## 0.1.2 (2026-10-16)\n\n- Spotify's icon in the Steam menu now just turns green while Spotify is running, without a glow. The Menu icon glow setting is gone.\n\n### Fixes\n\n- Pressing the Steam button while Spotify is on screen no longer freezes Steam."
+  "Changelog": "## 0.1.3 (2026-10-17)\n\n- Type into Spotify with Steam's keyboard: select a text field in Spotify, such as the search bar, press Steam + X, type in the text box that appears, and press Type. Accented letters and emoji work too."
 }

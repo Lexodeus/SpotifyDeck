@@ -1,7 +1,7 @@
-import { Router } from "@decky/ui";
-import { FC } from "react";
+import { DialogButton, Focusable, Router, TextField } from "@decky/ui";
+import { FC, useEffect, useRef, useState } from "react";
 import { FaSpotify } from "react-icons/fa";
-import { hideSpotify, setSteamOverlayOpen, showSpotify, useSpotifyState } from "./backend";
+import { hideSpotify, sendText, setSteamOverlayOpen, showSpotify, useSpotifyState } from "./backend";
 
 export const routePath = "/spotify";
 
@@ -12,20 +12,51 @@ interface History {
 
 const mainWindow = () => Router.WindowStore?.GamepadUIMainWindowInstance as any;
 
+function isKeyboardShowing() {
+  // A getter returning a subscribable value ({ m_currentValue }), not a function
+  return !!mainWindow()?.m_VirtualKeyboardManager?.IsShowingVirtualKeyboard?.m_currentValue;
+}
+
+function hideKeyboard() {
+  try {
+    mainWindow()?.m_VirtualKeyboardManager?.SetVirtualKeyboardHidden?.();
+  } catch (e) {
+    console.error("[SpotifyDeck] Couldn't hide Steam's keyboard:", e);
+  }
+}
+
 // With no game running, Steam draws these inside its own window, which is underneath Spotify
 function isSteamOverlayOpen() {
   try {
     const window = mainWindow();
-    return !!(
-      window?.MenuStore?.IsAnySideMenuVisible?.() ||
-      window?.m_bShowingGlobalModal ||
-      // A getter returning a subscribable value ({ m_currentValue }), not a function
-      window?.m_VirtualKeyboardManager?.IsShowingVirtualKeyboard?.m_currentValue
-    );
+    return !!(window?.MenuStore?.IsAnySideMenuVisible?.() || window?.m_bShowingGlobalModal || isKeyboardShowing());
   } catch (e) {
     console.error("[SpotifyDeck] Couldn't check Steam's menus:", e);
     return false;
   }
+}
+
+/**
+ * Steam's keyboard can't type into Spotify, so opening it on the Spotify page shows a text box
+ * on Steam's page instead. Spotify stays out of the way until the text is sent or cancelled.
+ */
+let composing = false;
+const composingListeners = new Set<(composing: boolean) => void>();
+
+function setComposing(next: boolean) {
+  if (composing === next) return;
+  composing = next;
+  composingListeners.forEach((listener) => listener(composing));
+}
+
+function useComposing() {
+  const [current, setCurrent] = useState(composing);
+  useEffect(() => {
+    composingListeners.add(setCurrent);
+    setCurrent(composing);
+    return () => void composingListeners.delete(setCurrent);
+  }, []);
+  return current;
 }
 
 /**
@@ -49,6 +80,7 @@ export function watchNavigation() {
     } else if (onSpotify) {
       onSpotify = false;
       overlayOpen = false;
+      setComposing(false);
       hideSpotify();
     }
   });
@@ -57,9 +89,20 @@ export function watchNavigation() {
     onSpotify = true;
     showSpotify();
   }
+  // Steam + X is sent to the focused app's in-game overlay, which Spotify doesn't have, so Steam shows nothing.
+  // Open the text box instead.
+  let keyboardRequests: { unregister(): void } | undefined;
+  try {
+    keyboardRequests = (SteamClient.Input as any).RegisterForUserKeyboardMessages(() => {
+      if (onSpotify) setComposing(true);
+    });
+  } catch (e) {
+    console.error("[SpotifyDeck] Couldn't listen for Steam + X:", e);
+  }
   const overlayTimer = setInterval(() => {
     if (!onSpotify) return;
-    const open = isSteamOverlayOpen();
+    if (isKeyboardShowing()) setComposing(true);
+    const open = composing || isSteamOverlayOpen();
     if (open !== overlayOpen) {
       overlayOpen = open;
       setSteamOverlayOpen(open);
@@ -67,13 +110,73 @@ export function watchNavigation() {
   }, 100);
   return () => {
     stopListening();
+    keyboardRequests?.unregister();
     clearInterval(overlayTimer);
+    setComposing(false);
   };
 }
 
-/** Steam's page behind Spotify. It's only seen while Spotify starts, or when something went wrong. */
+const TextBox: FC = () => {
+  const [text, setText] = useState("");
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // Open Steam's keyboard on the text field, the way selecting it with A would
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const input = boxRef.current?.querySelector("input");
+      if (!input || isKeyboardShowing()) return;
+      input.focus();
+      input.click();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const finish = (send: boolean) => {
+    if (send && text.trim()) sendText(text);
+    setText("");
+    hideKeyboard();
+    setComposing(false);
+  };
+
+  return (
+    <div ref={boxRef} style={{ width: "100%", maxWidth: "720px" }}>
+      <Focusable
+        style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+        onCancel={(e) => {
+          e.stopPropagation();
+          finish(false);
+        }}
+        onCancelActionDescription="Back to Spotify"
+      >
+        <div style={{ fontSize: "16px", opacity: 0.8 }}>
+          Typed into the text field selected in Spotify, such as the search bar.
+        </div>
+        <TextField
+          focusOnMount
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              finish(true);
+            }
+          }}
+        />
+        <Focusable style={{ display: "flex", gap: "12px" }} flow-children="horizontal">
+          <DialogButton disabled={!text.trim()} onClick={() => finish(true)}>
+            Type
+          </DialogButton>
+          <DialogButton onClick={() => finish(false)}>Cancel</DialogButton>
+        </Focusable>
+      </Focusable>
+    </div>
+  );
+};
+
+/** Steam's page behind Spotify. It's seen while Spotify starts, while typing text for it, or when something went wrong. */
 export const SpotifyPage: FC = () => {
   const { installed, running, launching, error } = useSpotifyState();
+  const isComposing = useComposing();
 
   let message = "Press the Steam button to go back to Steam. Spotify keeps playing in the background.";
   if (!installed) message = "Spotify isn't installed. Install it from Discover in Desktop Mode.";
@@ -96,7 +199,7 @@ export const SpotifyPage: FC = () => {
       }}
     >
       <FaSpotify size="64px" color="#1ed760" />
-      <div style={{ fontSize: "18px", maxWidth: "560px" }}>{message}</div>
+      {isComposing && running ? <TextBox /> : <div style={{ fontSize: "18px", maxWidth: "560px" }}>{message}</div>}
     </div>
   );
 };

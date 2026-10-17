@@ -6,6 +6,7 @@ Adds **Spotify** to the Steam menu in Gaming Mode. It opens the Spotify flatpak 
 
 - Pick **Spotify** in the Steam menu to open it. It starts Spotify first if it isn't running yet.
 - Press the Steam button and pick anything else to go back to Steam. Spotify keeps playing in the background.
+- Press Steam + X while Spotify is open to type with Steam's keyboard. Select the text field in Spotify first, such as the search bar, then type in the text box that appears and press Type.
 - Highlight Spotify in the Steam menu and press X to close it, or use Close Spotify in the Quick Access menu.
 - While Spotify runs, its icon in the Steam menu turns green, and Audio Loader's menu music pauses.
 
@@ -21,6 +22,8 @@ Adds **Spotify** to the Steam menu in Gaming Mode. It opens the Spotify flatpak 
 ## How it works
 
 Gaming Mode's compositor (gamescope) only shows windows that belong to an app Steam launched. The plugin's backend starts Spotify in your user session and tags its window with a placeholder app ID. While Steam is on the plugin's Spotify page, the backend asks gamescope to show that window. When Steam navigates away, or brings a game to the front, it hands the screen back to Steam.
+
+Steam's on-screen keyboard only types into Steam's own UI, so the plugin shows a text box on Steam's page instead and types the text into Spotify with `xdotool`.
 
 ## Requirements
 

@@ -13,6 +13,7 @@ export const showSpotify = callable<[], void>("show");
 export const hideSpotify = callable<[], void>("hide");
 export const closeSpotify = callable<[], void>("close");
 export const setSteamOverlayOpen = callable<[isOpen: boolean], void>("set_steam_overlay_open");
+export const sendText = callable<[text: string], void>("send_text");
 const getState = callable<[], SpotifyState>("get_state");
 const getSetting = callable<[key: string, fallback: unknown], any>("get_setting");
 const setSetting = callable<[key: string, value: unknown], void>("set_setting");
