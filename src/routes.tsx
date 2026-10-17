@@ -12,6 +12,9 @@ interface History {
 
 const mainWindow = () => Router.WindowStore?.GamepadUIMainWindowInstance as any;
 
+// Time for Steam to finish handling Steam + X before Spotify steps aside for the text box
+const CHORD_RELEASE_DELAY_MS = 400;
+
 function isKeyboardShowing() {
   // A getter returning a subscribable value ({ m_currentValue }), not a function
   return !!mainWindow()?.m_VirtualKeyboardManager?.IsShowingVirtualKeyboard?.m_currentValue;
@@ -91,10 +94,18 @@ export function watchNavigation() {
   }
   // Steam + X is sent to the focused app's in-game overlay, which Spotify doesn't have, so Steam shows nothing.
   // Open the text box instead.
+  // The message arrives as the Steam button is let go, which is also when Steam gives the controller back to
+  // Spotify's (placeholder) controller config. Spotify only steps aside after that, so Steam then switches to its
+  // own config and the D-pad works on the keyboard. Stepping aside first leaves the controller on Spotify's config.
   let keyboardRequests: { unregister(): void } | undefined;
+  let composeTimer: ReturnType<typeof setTimeout> | undefined;
   try {
     keyboardRequests = (SteamClient.Input as any).RegisterForUserKeyboardMessages(() => {
-      if (onSpotify) setComposing(true);
+      if (!onSpotify) return;
+      clearTimeout(composeTimer);
+      composeTimer = setTimeout(() => {
+        if (onSpotify) setComposing(true);
+      }, CHORD_RELEASE_DELAY_MS);
     });
   } catch (e) {
     console.error("[SpotifyDeck] Couldn't listen for Steam + X:", e);
@@ -111,6 +122,7 @@ export function watchNavigation() {
   return () => {
     stopListening();
     keyboardRequests?.unregister();
+    clearTimeout(composeTimer);
     clearInterval(overlayTimer);
     setComposing(false);
   };
