@@ -16,14 +16,16 @@ Adds **Spotify** to the Steam menu in Gaming Mode. It opens the Spotify flatpak 
 
 You need:
 
-- **Decky Loader** 3 or newer. If you don't have it yet, follow the instructions at [decky.xyz](https://decky.xyz) (in Desktop Mode, download and run the installer).
-- **Spotify** from Discover (Flathub `com.spotify.Client`): switch to Desktop Mode (Steam button → Power → Switch to Desktop), open **Discover**, search for **Spotify** and install it. Open it once there and log in to your Spotify account, then switch back to Gaming Mode.
+- [Decky Loader](https://decky.xyz) 3 or newer
+- Spotify (Flathub `com.spotify.Client`)
 
-Then install SpotifyDeck:
-
-1. Download `SpotifyDeck.zip` from the [latest release](https://github.com/Lexodeus/SpotifyDeck/releases/latest).
-2. In Gaming Mode, open the Quick Access menu (the … button), go to Decky and open its settings (the gear icon). Under **General**, turn on **Developer mode** if it isn't on yet.
-3. Open the **Developer** tab, pick **Install Plugin from ZIP File** and choose `SpotifyDeck.zip`.
+1. If you don't have Decky Loader yet, switch to Desktop Mode (Steam button → Power → Switch to Desktop), download the installer from [decky.xyz](https://decky.xyz) and run it.
+2. In Desktop Mode, open Discover, search for Spotify and install it.
+3. Still in Desktop Mode, open Spotify and log in to your account. Logging in is easier with a mouse and keyboard here than in Gaming Mode, and the plugin opens Spotify already logged in.
+4. Maximize Spotify's window before you close it. Spotify remembers its window size, and a maximized window fills the screen properly in Gaming Mode.
+5. Download `SpotifyDeck.zip` from the [latest release](https://github.com/Lexodeus/SpotifyDeck/releases/latest), then switch back to Gaming Mode.
+6. Open the Quick Access menu (the … button), go to Decky and select the gear icon. Under **General**, turn on **Developer mode**.
+7. Open the **Developer** tab that appears, select **Install Plugin from ZIP File** and pick `SpotifyDeck.zip`.
 
 Spotify now shows up in the Steam menu.
 
