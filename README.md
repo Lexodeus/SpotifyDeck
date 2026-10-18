@@ -12,6 +12,14 @@ Adds **Spotify** to the Steam menu in Gaming Mode. It opens the Spotify flatpak 
 
 ![The Spotify app open full screen in Gaming Mode](assets/spotify.png)
 
+## Getting around in Spotify
+
+Spotify is a desktop app and doesn't support the controller's buttons, so you use a mouse pointer to move around in it:
+
+- **Controller:** hold the Steam button and move your thumb on the right trackpad to move the pointer. Keep holding Steam and press R2 to click (L2 to right-click).
+- **Mouse:** plug in a USB mouse or pair a Bluetooth mouse, and use it like on a desktop.
+- **Typing:** select a text field with the pointer, such as the search bar, then press Steam + X (see above). A USB or Bluetooth keyboard also types straight into Spotify.
+
 ## Quick Access menu
 
 ![SpotifyDeck in the Quick Access menu](assets/quick-access.png)
