@@ -1,6 +1,6 @@
 {
   "name": "spotify-deck",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Opens the Spotify flatpak from the Steam menu in Gaming Mode, without adding it as a non-Steam game",
   "type": "module",
   "scripts": {

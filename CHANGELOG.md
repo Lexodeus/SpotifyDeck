@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 (2026-10-17)
+
+- The Quick Access menu now mentions, under Close Spotify, that pressing X on Spotify's Steam menu entry closes it too.
+
 ## 0.1.3 (2026-10-17)
 
 - Type into Spotify with Steam's keyboard: select a text field in Spotify, such as the search bar, press Steam + X, type in the text box that appears, and press Type. Accented letters and emoji work too.

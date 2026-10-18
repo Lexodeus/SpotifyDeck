@@ -36,7 +36,11 @@ function Content() {
       </PanelSectionRow>
       {running && (
         <PanelSectionRow>
-          <ButtonItem layout="below" onClick={() => closeSpotify()}>
+          <ButtonItem
+            layout="below"
+            description="You can also close it by highlighting Spotify in the Steam menu and pressing X."
+            onClick={() => closeSpotify()}
+          >
             Close Spotify
           </ButtonItem>
         </PanelSectionRow>

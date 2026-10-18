@@ -12,6 +12,21 @@ Adds **Spotify** to the Steam menu in Gaming Mode. It opens the Spotify flatpak 
 
 ![The Spotify app open full screen in Gaming Mode](assets/spotify.png)
 
+## Installation
+
+You need:
+
+- **Decky Loader** 3 or newer. If you don't have it yet, follow the instructions at [decky.xyz](https://decky.xyz) (in Desktop Mode, download and run the installer).
+- **Spotify** from Discover (Flathub `com.spotify.Client`): switch to Desktop Mode (Steam button → Power → Switch to Desktop), open **Discover**, search for **Spotify** and install it. Open it once there and log in to your Spotify account, then switch back to Gaming Mode.
+
+Then install SpotifyDeck:
+
+1. Download `SpotifyDeck.zip` from the [latest release](https://github.com/Lexodeus/SpotifyDeck/releases/latest).
+2. In Gaming Mode, open the Quick Access menu (the … button), go to Decky and open its settings (the gear icon). Under **General**, turn on **Developer mode** if it isn't on yet.
+3. Open the **Developer** tab, pick **Install Plugin from ZIP File** and choose `SpotifyDeck.zip`.
+
+Spotify now shows up in the Steam menu.
+
 ## Getting around in Spotify
 
 Spotify is a desktop app and doesn't support the controller's buttons, so you use a mouse pointer to move around in it:
@@ -24,7 +39,7 @@ Spotify is a desktop app and doesn't support the controller's buttons, so you us
 
 ![SpotifyDeck in the Quick Access menu](assets/quick-access.png)
 
-- **Close Spotify** (shown while Spotify is running)
+- **Close Spotify** (shown while Spotify is running). Highlighting Spotify in the Steam menu and pressing X closes it too.
 - **Position in Steam menu**: where Spotify sits, counting every entry in the menu
 
 ## How it works
@@ -33,10 +48,11 @@ Gaming Mode's compositor (gamescope) only shows windows that belong to an app St
 
 Steam's on-screen keyboard only types into Steam's own UI, so the plugin shows a text box on Steam's page instead and types the text into Spotify with `xdotool`.
 
-## Requirements
+## Privacy
 
-- Decky Loader 3 or newer
-- Spotify installed from Discover (Flathub `com.spotify.Client`)
+SpotifyDeck is only a container for the Spotify app. It starts Spotify and shows its window in Gaming Mode; you log in and listen in Spotify itself, and SpotifyDeck never sees your account or password.
+
+SpotifyDeck doesn't store or send your data or credentials anywhere, and it makes no network connections of its own. The only thing it saves is its own setting (Spotify's position in the Steam menu), on your device. Text you type with Steam + X is typed straight into Spotify and isn't saved or logged.
 
 ## Credits
 
