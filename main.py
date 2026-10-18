@@ -283,7 +283,6 @@ class Plugin:
         await asyncio.sleep(REFOCUS_DELAY)
         # Typed through XTEST into whatever has keyboard focus, which is the window gamescope focused
         await run("xdotool", "type", "--delay", "12", "--file", "-", stdin=text)
-        decky.logger.info(f"Typed {len(text)} characters into Spotify")
 
     async def _focus(self, window: int):
         await run("xprop", "-id", str(window), "-f", "STEAM_GAME", "32c", "-set", "STEAM_GAME", str(GAMESCOPE_APP_ID))
