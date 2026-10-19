@@ -3,7 +3,7 @@ import { afterPatch, findInReactTree, getReactRoot } from "@decky/ui";
 import { FC, ReactElement, ReactNode } from "react";
 import { FaSpotify } from "react-icons/fa";
 import { closeSpotify, settings, useSpotifyState } from "./backend";
-import { isMenuEntry, placePositionedMenuItems } from "./menuOrder";
+import { hasMenuItem, isMenuEntry, placePositionedMenuItems } from "./menuOrder";
 import { routePath } from "./routes";
 
 interface MainMenuItemProps {
@@ -41,6 +41,9 @@ export function patchMenu() {
       ret.props.children.props.children[0].type = patchedInnerMenu;
     } else {
       afterPatch(ret.props.children.props.children[0], "type", (_: any, ret: any) => {
+        // Decky can't remove this patch when the plugin unloads (other patches may wrap it), so after a reload it
+        // stays in place next to the new instance's patch. Only the new instance adds Spotify.
+        if (unpatched) return ret;
         const isMenuItemElt = (e: any) =>
           e?.props?.label && (e.props.onFocus || e.props.onGamepadFocus) && e.props.route && e.type?.toString;
         const menuItems = findInReactTree(ret, (node) => Array.isArray(node) && node.some(isMenuItemElt)) as any[];
@@ -48,7 +51,7 @@ export function patchMenu() {
           log("Could not find menu items to patch.");
           return ret;
         }
-        if (!menuItems.some((item) => item?.key === "spotify")) {
+        if (!hasMenuItem(menuItems, "spotify")) {
           // Steam's own entries with a route (not running games) render with the component to copy
           const menuItem = menuItems.find((e) => isMenuItemElt(e) && isMenuEntry(e)) as
             | { props: MainMenuItemProps; type: FC<MainMenuItemProps> }

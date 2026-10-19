@@ -80,10 +80,17 @@ function Content() {
 }
 
 export default definePlugin(() => {
-  loadSettings();
   const stopListeningForState = listenForState();
   routerHook.addRoute(routePath, SpotifyPage, { exact: true });
-  const unpatchMenu = patchMenu();
+  // Add Spotify to the Steam menu once its saved position is known. Right after a reload or update the backend
+  // takes a few seconds to answer, and until then the menu would show Spotify last.
+  let unloaded = false;
+  let unpatchMenu = () => {};
+  loadSettings()
+    .catch((e) => console.error("[SpotifyDeck] Couldn't load settings, using the defaults:", e))
+    .finally(() => {
+      if (!unloaded) unpatchMenu = patchMenu();
+    });
   const stopWatchingNavigation = watchNavigation();
   const stopPausingMenuMusic = pauseMenuMusicWhileSpotifyRuns();
 
@@ -95,6 +102,7 @@ export default definePlugin(() => {
     onDismount() {
       stopPausingMenuMusic();
       stopWatchingNavigation();
+      unloaded = true;
       unpatchMenu();
       routerHook.removeRoute(routePath);
       stopListeningForState();
