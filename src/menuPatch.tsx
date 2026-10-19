@@ -63,6 +63,7 @@ export function patchMenu() {
               route={routePath}
               label="Spotify"
               menuPosition={settings.menuPosition}
+              menuYieldsOnTie
               onFocus={menuItem.props.onFocus}
               onGamepadFocus={menuItem.props.onGamepadFocus}
               useIconAsProp={!!menuItem.props.icon}
@@ -101,6 +102,8 @@ export interface MenuEntryInfo {
   label: string;
   /** False when a theme hides it */
   visible: boolean;
+  /** Another plugin's entry that asked for this exact position, which it keeps over Spotify */
+  claimed: boolean;
 }
 
 // The menu's entries and grouping divs are plain children of this element (see menuOrder.ts)
@@ -141,8 +144,10 @@ export function readMenuEntries(): MenuEntryInfo[] | undefined {
     const entries: MenuEntryInfo[] = [];
     rendered.forEach((e, index) => {
       if (!isMenuEntry(e) || e.key === "spotify") return;
+      const position = entries.length + 1;
       entries.push({
-        position: entries.length + 1,
+        position,
+        claimed: e.props.menuPosition === position && !e.props.menuYieldsOnTie,
         label: items[index].textContent?.trim() || (typeof e.props.label === "string" ? e.props.label : "?"),
         visible: view.getComputedStyle(items[index]).display !== "none",
       });
@@ -154,17 +159,23 @@ export function readMenuEntries(): MenuEntryInfo[] | undefined {
   }
 }
 
-// Spotify green mixed 50/50 with the menu's icon grey rgb(184, 188, 191). No CSS filter (e.g. a drop-shadow glow):
-// Steam's renderer hangs repainting a filtered icon when the Steam menu opens over Spotify.
+// Shows that Spotify is running: Spotify green mixed 50/50 with the menu's icon grey rgb(184, 188, 191)
 const runningIconStyle = { color: "#6bca90" };
 
 interface SpotifyMenuItemProps extends MainMenuItemProps {
   menuPosition: number;
+  menuYieldsOnTie: boolean;
   MenuItemComponent: FC<MainMenuItemProps>;
   useIconAsProp: boolean;
 }
 
-const SpotifyMenuItem: FC<SpotifyMenuItemProps> = ({ MenuItemComponent, useIconAsProp, menuPosition: _, ...props }) => {
+const SpotifyMenuItem: FC<SpotifyMenuItemProps> = ({
+  MenuItemComponent,
+  useIconAsProp,
+  menuPosition: _position,
+  menuYieldsOnTie: _yields,
+  ...props
+}) => {
   const { running } = useSpotifyState();
   const icon = <FaSpotify style={running ? runningIconStyle : {}} />;
 

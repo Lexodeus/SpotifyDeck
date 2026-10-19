@@ -161,6 +161,7 @@ class Plugin:
     async def _unload(self):
         # Decky may stop the backend before a full hide() finishes, so give the screen back to Steam first
         if self.shown_window is not None:
+            await park_pointer()
             await set_root_window_focus(0)
         await self.hide()
 
@@ -175,6 +176,7 @@ class Plugin:
             if app_id != GAMESCOPE_APP_ID:
                 continue
             if focused == [window]:
+                await park_pointer()
                 await set_root_window_focus(0)
             await run("xprop", "-id", str(window), "-remove", "STEAM_GAME")
             decky.logger.info(f"Released Spotify window {window} left over from a previous run")
