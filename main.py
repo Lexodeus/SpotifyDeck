@@ -95,6 +95,12 @@ def parse_cardinals(xprop_line: str) -> list[int]:
     return [int(v) for v in xprop_line.split("=", 1)[1].replace(" ", "").split(",") if v.isdigit()]
 
 
+async def is_top_level(window: int) -> bool:
+    _, out = await run("xwininfo", "-tree", "-id", str(window))
+    parent = next((line for line in out.splitlines() if line.strip().startswith("Parent window id:")), "")
+    return "(the root window)" in parent
+
+
 async def set_root_window_focus(window: int):
     await run("xprop", "-root", "-f", "GAMESCOPECTRL_BASELAYER_WINDOW", "32c",
               "-set", "GAMESCOPECTRL_BASELAYER_WINDOW", str(window))
@@ -262,10 +268,13 @@ class Plugin:
             raise RuntimeError(f"Couldn't start Spotify: {out}")
 
     async def _find_window(self) -> int | None:
-        # Spotify also has a 10x10 unmapped leader window; --onlyvisible leaves just the main one
+        # Spotify also has a 10x10 unmapped leader window; --onlyvisible leaves out that one.
+        # It can also draw into a visible child window inside its main one, and gamescope only shows
+        # top-level windows, so keep the windows whose parent is the root window.
         _, out = await run("xdotool", "search", "--onlyvisible", "--class", "^Spotify$")
         windows = [int(w) for w in out.split() if w.isdigit()]
-        return windows[-1] if windows else None
+        top_level = [w for w in windows if await is_top_level(w)]
+        return top_level[-1] if top_level else None
 
     async def _wait_for_window(self) -> int:
         for _ in range(WINDOW_WAIT_SECONDS * 2):
