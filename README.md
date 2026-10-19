@@ -42,7 +42,7 @@ Spotify is a desktop app and doesn't support the controller's buttons, so you us
 ![SpotifyDeck in the Quick Access menu](assets/quick-access.png)
 
 - **Close Spotify** (shown while Spotify is running). Highlighting Spotify in the Steam menu and pressing X closes it too.
-- **Position in Steam menu**: where Spotify sits, counting every entry in the menu
+- **Position in Steam menu**: which entry Spotify sits above. It lists the entries you can see in the Steam menu, including other plugins' entries and leaving out any a theme hides.
 
 ## How it works
 

@@ -12,17 +12,35 @@ import {
   useSpotifyState,
 } from "./backend";
 import { pauseMenuMusicWhileSpotifyRuns } from "./audioLoader";
-import { patchMenu } from "./menuPatch";
+import { patchMenu, readMenuEntries } from "./menuPatch";
 import { routePath, SpotifyPage, watchNavigation } from "./routes";
 
-const menuPositionOptions = [
-  ...Array.from({ length: 8 }, (_, i) => ({ data: i + 1, label: `${i + 1}` })),
-  { data: LAST_MENU_POSITION, label: "Last" },
-];
+/**
+ * One option per spot between the entries you can see in the Steam menu. Entries a theme hides are skipped: Spotify
+ * goes above the next visible entry either way.
+ */
+function menuPositionOptions() {
+  const entries = readMenuEntries()?.filter((entry) => entry.visible);
+  if (!entries?.length) {
+    // The menu couldn't be read: plain numbers for Steam's 8 entries
+    return [
+      ...Array.from({ length: 8 }, (_, i) => ({ data: i + 1, label: `${i + 1}` })),
+      { data: LAST_MENU_POSITION, label: "Last" },
+    ];
+  }
+  return [
+    ...entries.map((entry, i) => ({ data: entry.position, label: `${i + 1}: above ${entry.label}` })),
+    { data: LAST_MENU_POSITION, label: `${entries.length + 1}: last` },
+  ];
+}
 
 function Content() {
   const { installed, running, launching } = useSpotifyState();
   const [menuPosition, setMenuPositionState] = useState(settings.menuPosition);
+  // Read when the panel opens, so it matches the menu as it is now
+  const [options] = useState(menuPositionOptions);
+  // A saved position above a hidden entry shows as the next visible spot, where Spotify actually appears
+  const selected = options.find((option) => option.data >= menuPosition) ?? options[options.length - 1];
 
   let status = "Not running";
   if (!installed) status = "Not installed. Install Spotify from Discover in Desktop Mode.";
@@ -48,8 +66,8 @@ function Content() {
       <PanelSectionRow>
         <DropdownItem
           label="Position in Steam menu"
-          rgOptions={menuPositionOptions}
-          selectedOption={menuPosition}
+          rgOptions={options}
+          selectedOption={selected.data}
           onChange={(option) => {
             setMenuPositionState(option.data);
             setMenuPosition(option.data);
