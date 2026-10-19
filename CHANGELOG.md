@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.5 (2026-10-18)
+
+- Position in Steam menu now lists a number for every spot among the entries you can see, counting other plugins' entries and leaving out entries a theme hides.
+- If another plugin asks for the same spot, it keeps it and Spotify goes right below.
+
+### Fixes
+
+- CSS Loader themes that hide Steam menu entries (such as Main Menu Hide Tabs) hide the right entries again, wherever Spotify sits in the menu.
+- Spotify opens again on the Steam Deck, where Steam's Spotify page could stay in front of it.
+- Pressing the Steam button while Spotify is on screen no longer freezes Steam when the mouse pointer is near the left edge.
+- After the plugin is reloaded or updated, Spotify shows up once in the Steam menu, at its saved position.
+
 ## 0.1.4 (2026-10-17)
 
 - The Quick Access menu now mentions, under Close Spotify, that pressing X on Spotify's Steam menu entry closes it too.

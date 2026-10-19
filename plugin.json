@@ -12,5 +12,5 @@
     "description": "Adds Spotify to the Steam menu. Opens the Spotify app installed from Discover without adding it as a non-Steam game.",
     "image": "https://raw.githubusercontent.com/Lexodeus/SpotifyDeck/master/assets/screenshot.png"
   },
-  "Changelog": "## 0.1.4 (2026-10-17)\n\n- The Quick Access menu now mentions, under Close Spotify, that pressing X on Spotify's Steam menu entry closes it too."
+  "Changelog": "## 0.1.5 (2026-10-18)\n\n- Position in Steam menu now lists a number for every spot among the entries you can see, counting other plugins' entries and leaving out entries a theme hides.\n- If another plugin asks for the same spot, it keeps it and Spotify goes right below.\n\n### Fixes\n\n- CSS Loader themes that hide Steam menu entries (such as Main Menu Hide Tabs) hide the right entries again, wherever Spotify sits in the menu.\n- Spotify opens again on the Steam Deck, where Steam's Spotify page could stay in front of it.\n- Pressing the Steam button while Spotify is on screen no longer freezes Steam when the mouse pointer is near the left edge.\n- After the plugin is reloaded or updated, Spotify shows up once in the Steam menu, at its saved position."
 }
