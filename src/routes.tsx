@@ -152,6 +152,8 @@ export function watchNavigation() {
     clearTimeout(composeTimer);
     clearInterval(overlayTimer);
     setComposing(false);
+    // A wrap that can't be undone below stays in the chain; with onSpotify false it just passes calls on
+    onSpotify = false;
     // Only undo the wrap if nothing wrapped it after this
     if (menuStore?.OpenSideMenu === openSideMenu) {
       if (hadOwnOpenSideMenu) menuStore.OpenSideMenu = originalOpenSideMenu;
