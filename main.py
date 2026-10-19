@@ -95,6 +95,24 @@ def parse_cardinals(xprop_line: str) -> list[int]:
     return [int(v) for v in xprop_line.split("=", 1)[1].replace(" ", "").split(",") if v.isdigit()]
 
 
+async def park_pointer() -> tuple[int, int] | None:
+    """
+    Moves the mouse pointer to the bottom-right corner, where Steam keeps it, and returns where it was.
+    Steam's menu opens at the left edge of the screen. If the pointer is still over that spot when Spotify steps
+    aside, the menu and Steam's main window fight over keyboard focus and Steam's UI hangs.
+    """
+    try:
+        _, location = await run("xdotool", "getmouselocation", "--shell")
+        values = dict(line.split("=", 1) for line in location.splitlines() if "=" in line)
+        _, size = await run("xdotool", "getdisplaygeometry")
+        width, height = (int(v) for v in size.split())
+        await run("xdotool", "mousemove", str(width - 1), str(height - 1))
+        return int(values["X"]), int(values["Y"])
+    except Exception:
+        decky.logger.exception("Couldn't move the mouse pointer out of the way")
+        return None
+
+
 async def is_top_level(window: int) -> bool:
     _, out = await run("xwininfo", "-tree", "-id", str(window))
     parent = next((line for line in out.splitlines() if line.strip().startswith("Parent window id:")), "")
@@ -110,6 +128,9 @@ class Plugin:
     launching = False
     shown_window: int | None = None
     error: str | None = None
+
+    # Where the mouse pointer was in Spotify before it was parked for Steam
+    pointer: tuple[int, int] | None = None
 
     # Spotify window stepped aside while a Steam menu, modal, keyboard or the text box is open
     lowered_window: int | None = None
@@ -297,6 +318,9 @@ class Plugin:
         await run("xprop", "-id", str(window), "-f", "STEAM_GAME", "32c", "-set", "STEAM_GAME", str(GAMESCOPE_APP_ID))
         await set_root_window_focus(window)
         self.shown_window = window
+        if self.pointer:
+            await run("xdotool", "mousemove", *map(str, self.pointer))
+            self.pointer = None
         decky.logger.info(f"Showing Spotify window {window}")
         if not self.watch_task or self.watch_task.done():
             self.watch_task = asyncio.create_task(self._watch_steam_focus())
@@ -308,6 +332,7 @@ class Plugin:
         if window is None:
             return
         if await read_root_cardinals("GAMESCOPECTRL_BASELAYER_WINDOW") == [window]:
+            self.pointer = await park_pointer()
             await set_root_window_focus(0)
         await run("xprop", "-id", str(window), "-remove", "STEAM_GAME")
         decky.logger.info(f"Hid Spotify window {window}")
