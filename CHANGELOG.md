@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 (2026-10-18)
+
+### Fixes
+
+- Pressing the Steam button or the ... button while Spotify is on screen no longer freezes Steam. Spotify now steps aside before the menu opens instead of right after. The 0.1.5 fix only helped in some cases, such as when Spotify had been running for a while.
+
 ## 0.1.5 (2026-10-18)
 
 - Position in Steam menu now lists a number for every spot among the entries you can see, counting other plugins' entries and leaving out entries a theme hides.
