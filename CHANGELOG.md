@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The controller layout is also set up for the Steam Controller, for example on a Steam Machine. Before, SpotifyDeck only set it up for the Steam Deck's own controls.
+
 ## 0.2.0 (2026-10-24)
 
 - Controller layout for Spotify on the Steam Deck, set up when you install SpotifyDeck: A plays/pauses, L1/R1 skip songs, D-pad left/right seek 5 seconds, D-pad up/down change Spotify's volume, and Menu opens Spotify's search (press it again to close it). The rest works like Steam's Web Browser layout (trackpad pointer, R2/L2 click). **Controller buttons** in the Quick Access menu lists the buttons and opens the layout in Steam to change it.

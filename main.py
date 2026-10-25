@@ -245,8 +245,13 @@ LAYOUT_CHANGES: dict[tuple[str, str], list[Activator]] = {
 }
 
 
-def build_layout(template: str, template_url: str, url: str, steam_id: str) -> str:
-    """Steam's Web Browser layout with the buttons in LAYOUT_CHANGES changed for Spotify."""
+# Steam only has a Web Browser layout for the Steam Deck. The Steam Controller (2026) has the same buttons and input
+# names, so its layout is built from the Deck's.
+WEB_BROWSER_TEMPLATES = {"controller_neptune": "controller_neptune", "controller_triton": "controller_neptune"}
+
+
+def build_layout(template: str, template_url: str, url: str, steam_id: str, controller_type: str) -> str:
+    """Steam's Web Browser layout, for controller_type, with the buttons in LAYOUT_CHANGES changed for Spotify."""
     (_, mappings), = parse_keyvalues(template)
     for (source, button), activators in LAYOUT_CHANGES.items():
         # Only the groups in use: the template also has an unused D-pad group for the left trackpad
@@ -261,6 +266,7 @@ def build_layout(template: str, template_url: str, url: str, steam_id: str) -> s
         "export_type": "unknown",
     }
     body = [(k, v) for k, v in mappings if k.lower() not in header and k.lower() != "localization"]
+    body = [(k, controller_type if k == "controller_type" else v) for k, v in body]
     version = [(k, v) for k, v in body[:1] if k == "version"]
     mappings[:] = version + list(header.items()) + body[len(version):]
     return format_keyvalues([("controller_mappings", mappings)]) + "\n"
@@ -565,9 +571,11 @@ class Plugin:
                 return {"url": url, "title": title}
             if not replace:
                 return {"url": None, "title": title}
-        template_name = f"{controller_type}_webbrowser.vdf"
+        if controller_type not in WEB_BROWSER_TEMPLATES:
+            raise ValueError(f"No Web Browser layout to start from for {controller_type}")
+        template_name = f"{WEB_BROWSER_TEMPLATES[controller_type]}_webbrowser.vdf"
         with open(os.path.join(steam_dir(), "controller_base", "templates", template_name), encoding="utf-8") as f:
-            layout = build_layout(f.read(), f"template://{template_name}", url, steam_id)
+            layout = build_layout(f.read(), f"template://{template_name}", url, steam_id, controller_type)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path + ".tmp", "w", encoding="utf-8") as f:
             f.write(layout)
