@@ -2,6 +2,7 @@ import { DialogButton, Focusable, Router, TextField } from "@decky/ui";
 import { FC, useEffect, useRef, useState } from "react";
 import { FaSpotify } from "react-icons/fa";
 import { hideSpotify, sendText, setSteamOverlayOpen, showSpotify, useSpotifyState } from "./backend";
+import { setUpLayouts } from "./controllerLayout";
 
 export const routePath = "/spotify";
 
@@ -78,7 +79,11 @@ export function watchNavigation() {
   const stopListening = history.listen((location, action) => {
     if (location.pathname === routePath) {
       // Steam replaces the current entry to store focus state; only a real navigation should re-show Spotify
-      if (!onSpotify || action !== "REPLACE") showSpotify();
+      if (!onSpotify || action !== "REPLACE") {
+        showSpotify();
+        // A controller connected since the plugin loaded gets SpotifyDeck's layout too
+        setUpLayouts();
+      }
       onSpotify = true;
     } else if (onSpotify) {
       onSpotify = false;

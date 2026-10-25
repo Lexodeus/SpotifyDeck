@@ -14,6 +14,10 @@ export const hideSpotify = callable<[], void>("hide");
 export const closeSpotify = callable<[], void>("close");
 export const setSteamOverlayOpen = callable<[isOpen: boolean], void>("set_steam_overlay_open");
 export const sendText = callable<[text: string], void>("send_text");
+export const prepareLayout = callable<
+  [steamId: string, serial: string, controllerType: string, replace: boolean],
+  { url: string | null; title: string | null }
+>("prepare_layout");
 const getState = callable<[], SpotifyState>("get_state");
 const getSetting = callable<[key: string, fallback: unknown], any>("get_setting");
 const setSetting = callable<[key: string, value: unknown], void>("set_setting");
@@ -55,10 +59,19 @@ export const LAST_MENU_POSITION = 99;
 
 export const settings = {
   menuPosition: LAST_MENU_POSITION,
+  // Serial numbers of the controllers whose layout for Spotify was already set up (or picked by you)
+  layoutControllers: [] as string[],
 };
 
 export async function loadSettings() {
   settings.menuPosition = await getSetting("menuPosition", LAST_MENU_POSITION);
+  settings.layoutControllers = await getSetting("layoutControllers", []);
+}
+
+export async function addLayoutController(serial: string) {
+  if (settings.layoutControllers.includes(serial)) return;
+  settings.layoutControllers = [...settings.layoutControllers, serial];
+  await setSetting("layoutControllers", settings.layoutControllers);
 }
 
 export async function setMenuPosition(position: number) {

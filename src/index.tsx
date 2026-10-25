@@ -12,6 +12,12 @@ import {
   useSpotifyState,
 } from "./backend";
 import { pauseMenuMusicWhileSpotifyRuns } from "./audioLoader";
+import {
+  nameSpotifyForControllerSettings,
+  setUpLayouts,
+  showButtonsModal,
+  stopSettingUpLayouts,
+} from "./controllerLayout";
 import { patchMenu, readMenuEntries } from "./menuPatch";
 import { routePath, SpotifyPage, watchNavigation } from "./routes";
 
@@ -65,6 +71,15 @@ function Content() {
         </PanelSectionRow>
       )}
       <PanelSectionRow>
+        <ButtonItem
+          layout="below"
+          description="What each button does in Spotify, and the controller layout Spotify uses."
+          onClick={() => showButtonsModal()}
+        >
+          Controller buttons
+        </ButtonItem>
+      </PanelSectionRow>
+      <PanelSectionRow>
         <DropdownItem
           label="Position in Steam menu"
           rgOptions={options}
@@ -89,10 +104,13 @@ export default definePlugin(() => {
   loadSettings()
     .catch((e) => console.error("[SpotifyDeck] Couldn't load settings, using the defaults:", e))
     .finally(() => {
-      if (!unloaded) unpatchMenu = patchMenu();
+      if (unloaded) return;
+      unpatchMenu = patchMenu();
+      setUpLayouts();
     });
   const stopWatchingNavigation = watchNavigation();
   const stopPausingMenuMusic = pauseMenuMusicWhileSpotifyRuns();
+  const unnameSpotify = nameSpotifyForControllerSettings();
 
   return {
     name: "SpotifyDeck",
@@ -102,6 +120,8 @@ export default definePlugin(() => {
     onDismount() {
       stopPausingMenuMusic();
       stopWatchingNavigation();
+      unnameSpotify();
+      stopSettingUpLayouts();
       unloaded = true;
       unpatchMenu();
       routerHook.removeRoute(routePath);

@@ -18,6 +18,10 @@ REFOCUS_DELAY = 0.3
 
 SETTINGS_FILE = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")
 
+# Steam Input treats Spotify's window as app GAMESCOPE_APP_ID without its top byte
+CONTROLLER_APP_ID = GAMESCOPE_APP_ID & 0xFFFFFF
+LAYOUT_TITLE = "SpotifyDeck"
+
 
 def load_settings() -> dict:
     try:
@@ -68,6 +72,218 @@ def die_with_parent():
         ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
     except Exception:
         pass
+
+
+# Steam Input layouts are Valve KeyValues files: nested "key" "value" pairs where keys can repeat, so a block is
+# kept as a list of (key, value) pairs and a value is either a string or another list.
+KeyValues = list[tuple[str, "str | KeyValues"]]
+
+
+def parse_keyvalues(text: str) -> KeyValues:
+    tokens: list[str | None] = []  # None marks a brace, kept in order in braces
+    braces: list[str] = []
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c.isspace():
+            i += 1
+        elif text.startswith("//", i):
+            end = text.find("\n", i)
+            i = len(text) if end == -1 else end + 1
+        elif c in "{}":
+            tokens.append(None)
+            braces.append(c)
+            i += 1
+        elif c == '"':
+            end = text.index('"', i + 1)
+            tokens.append(text[i + 1:end])
+            i = end + 1
+        else:
+            end = i
+            while end < len(text) and not text[end].isspace() and text[end] not in '{}"':
+                end += 1
+            tokens.append(text[i:end])
+            i = end
+    pos = brace = 0
+
+    def block() -> KeyValues:
+        nonlocal pos, brace
+        pairs: KeyValues = []
+        while pos < len(tokens):
+            key = tokens[pos]
+            pos += 1
+            if key is None:
+                if braces[brace] == "}":
+                    brace += 1
+                    return pairs
+                raise ValueError("Block without a key")
+            value = tokens[pos]
+            pos += 1
+            if value is None:
+                if braces[brace] != "{":
+                    raise ValueError("Unexpected }")
+                brace += 1
+                pairs.append((key, block()))
+            else:
+                pairs.append((key, value))
+        return pairs
+
+    return block()
+
+
+def format_keyvalues(pairs: KeyValues, depth=0) -> str:
+    indent = "\t" * depth
+    lines = []
+    for key, value in pairs:
+        if isinstance(value, str):
+            lines.append(f'{indent}"{key}"\t\t"{value}"')
+        else:
+            lines += [f'{indent}"{key}"', f"{indent}{{", format_keyvalues(value, depth + 1), f"{indent}}}"]
+    return "\n".join(line for line in lines if line)
+
+
+def blocks(pairs: KeyValues, key: str) -> list[KeyValues]:
+    return [value for k, value in pairs if k.lower() == key.lower() and not isinstance(value, str)]
+
+
+def value_of(pairs: KeyValues, key: str) -> str | None:
+    return next((v for k, v in pairs if k.lower() == key.lower() and isinstance(v, str)), None)
+
+
+def active_group_ids(mappings: KeyValues, source: str) -> set[str]:
+    """IDs of the groups the layout's presets bind to a physical control, e.g. "dpad" or "switch"."""
+    ids = set()
+    for preset in blocks(mappings, "preset"):
+        for bindings in blocks(preset, "group_source_bindings"):
+            for group_id, value in bindings:
+                if isinstance(value, str) and value.split() == [source, "active"]:
+                    ids.add(group_id)
+    return ids
+
+
+# One activator of a button: what it presses, and its settings (e.g. a delay)
+Activator = tuple[list[str], dict[str, str]]
+
+
+def set_button(mappings: KeyValues, group_ids: set[str], button: str, activators: list[Activator]) -> bool:
+    """Replaces what a button does in the given groups. Returns whether the button was found."""
+    found = False
+    for group in blocks(mappings, "group"):
+        if value_of(group, "id") not in group_ids:
+            continue
+        for inputs in blocks(group, "inputs"):
+            for binding in blocks(inputs, button):
+                for current in blocks(binding, "activators"):
+                    current[:] = [
+                        ("Full_Press", [("bindings", [("binding", b) for b in bindings])]
+                         + ([("settings", list(settings.items()))] if settings else []))
+                        for bindings, settings in activators
+                    ]
+                    found = True
+    return found
+
+
+def key(name: str, label: str) -> list[Activator]:
+    return [([f"key_press {name}, {label}"], {})]
+
+
+# Steam presses every key of a button in the same instant and lets go of them together, and Spotify ignores a
+# shortcut unless its modifier is pressed before the key and let go after it (tested on the Deck OLED). So a shortcut
+# presses the key a moment after the modifier and holds the modifier a moment longer, using two activators the way
+# Valve's own layouts delay one. Not interruptable: a quick tap still sends both.
+SHORTCUT_DELAY_MS = "30"
+
+
+def trigger(name: str, label: str) -> list[Activator]:
+    """A TRIGGER_KEYS key with Ctrl+Alt+Shift. The backend only needs the modifiers held, so no delays."""
+    return [([f"key_press {TRIGGER_MODIFIERS[0]}, {label}", *(f"key_press {m}" for m in TRIGGER_MODIFIERS[1:]),
+              f"key_press {name}"], {})]
+
+
+def shortcut(modifier: str, name: str, label: str) -> list[Activator]:
+    return [
+        ([f"key_press {modifier}, {label}"], {"delay_end": SHORTCUT_DELAY_MS, "interruptable": "0"}),
+        ([f"key_press {name}"], {"delay_start": SHORTCUT_DELAY_MS, "interruptable": "0"}),
+    ]
+
+
+# Keys the layout sends for what Spotify can't do from a key press: in Spotify for Linux, Ctrl+Left/Right and
+# Ctrl+Up/Down do nothing even with the timing above, and a second Ctrl+K doesn't close the search. The backend acts
+# on these keys while Spotify is in front (see _watch_trigger_keys); Spotify and SteamOS ignore media keys.
+# A USB or Bluetooth keyboard's keys reach X through the same device as Steam's, so the keys that don't mean what
+# they say are sent with Ctrl+Alt+Shift held, which nobody presses on a keyboard by accident. Previous/Next skip
+# songs from a keyboard too. (Steam sends nothing for F13-F24 on SteamOS.)
+TRIGGER_MODIFIERS = ["LEFT_CONTROL", "LEFT_ALT", "LEFT_SHIFT"]
+TRIGGER_STATE = 0x4 | 0x8 | 0x1  # X modifier state of Ctrl, Alt (Mod1) and Shift
+# (X keysym, sent with TRIGGER_MODIFIERS): action
+TRIGGER_KEYS = {
+    ("XF86AudioPrev", False): "previous",  # PREV_TRACK
+    ("XF86AudioNext", False): "next",  # NEXT_TRACK
+    ("XF86AudioPlay", True): "volume_up",  # PLAY
+    ("XF86AudioStop", True): "volume_down",  # STOP
+    ("XF86AudioPrev", True): "search",  # PREV_TRACK
+}
+# Keys and clicks that close Spotify's search, or leave it for something else
+SEARCH_CLOSING_KEYS = {"Escape", "Return", "KP_Enter"}
+
+# What SpotifyDeck changes in Steam's Web Browser layout, by physical control and button. In Spotify, Space plays
+# or pauses and Shift+Left/Right seek 5 seconds.
+# Valve's A sends Enter + Space, which would play/pause each time A selects something. In Steam's layout files
+# button_escape is the Menu (☰) button and button_menu is the View (⧉) button. Valve's View sends Ctrl+W, which
+# does nothing in Spotify.
+LAYOUT_CHANGES: dict[tuple[str, str], list[Activator]] = {
+    ("button_diamond", "button_a"): key("SPACE", "Play/pause"),
+    ("button_diamond", "button_y"): key("RETURN", "Enter"),
+    ("switch", "left_bumper"): key("PREV_TRACK", "Previous song"),
+    ("switch", "right_bumper"): key("NEXT_TRACK", "Next song"),
+    ("switch", "button_escape"): trigger("PREV_TRACK", "Search"),
+    ("switch", "button_menu"): key("ESCAPE", "Close popups"),
+    ("dpad", "dpad_north"): trigger("PLAY", "Volume up"),
+    ("dpad", "dpad_south"): trigger("STOP", "Volume down"),
+    ("dpad", "dpad_west"): shortcut("LEFT_SHIFT", "LEFT_ARROW", "Back 5 seconds"),
+    ("dpad", "dpad_east"): shortcut("LEFT_SHIFT", "RIGHT_ARROW", "Forward 5 seconds"),
+}
+
+
+def build_layout(template: str, template_url: str, url: str, steam_id: str) -> str:
+    """Steam's Web Browser layout with the buttons in LAYOUT_CHANGES changed for Spotify."""
+    (_, mappings), = parse_keyvalues(template)
+    for (source, button), activators in LAYOUT_CHANGES.items():
+        # Only the groups in use: the template also has an unused D-pad group for the left trackpad
+        if not set_button(mappings, active_group_ids(mappings, source), button, activators):
+            raise ValueError(f"Steam's Web Browser layout has changed, {button} wasn't found")
+    header = {
+        "title": LAYOUT_TITLE,
+        "description": "Layout for Spotify, set up by SpotifyDeck",
+        "creator": steam_id,
+        "progenitor": template_url,
+        "url": url,
+        "export_type": "unknown",
+    }
+    body = [(k, v) for k, v in mappings if k.lower() not in header and k.lower() != "localization"]
+    version = [(k, v) for k, v in body[:1] if k == "version"]
+    mappings[:] = version + list(header.items()) + body[len(version):]
+    return format_keyvalues([("controller_mappings", mappings)]) + "\n"
+
+
+def steam_dir() -> str:
+    return os.path.join(decky.DECKY_USER_HOME, ".local", "share", "Steam")
+
+
+def layout_path(steam_id: str, serial: str) -> str:
+    # Steam keeps the layout picked for an app per controller, in a file named after the controller's serial number
+    account_id = int(steam_id) - 76561197960265728
+    return os.path.join(steam_dir(), "steamapps", "common", "Steam Controller Configs", str(account_id), "config",
+                        str(CONTROLLER_APP_ID), f"{serial}.vdf")
+
+
+def layout_title(path: str) -> str | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            (_, mappings), = parse_keyvalues(f.read())
+        return value_of(mappings, "title")
+    except (OSError, ValueError):
+        return None
 
 
 async def run(*args: str, stdin: str | None = None) -> tuple[int, str]:
@@ -124,6 +340,63 @@ async def set_root_window_focus(window: int):
               "-set", "GAMESCOPECTRL_BASELAYER_WINDOW", str(window))
 
 
+# Prints "key <keysym> <modifier state>" for each key press on Steam's X display that's in argv, "release <keysym>"
+# when it's let go, and "click" for each mouse click, using the XRecord extension. Run with the system Python as its own process (see watch_trigger_keys).
+KEY_WATCHER = r"""
+import ctypes, sys
+X = ctypes.CDLL("libX11.so.6"); Xtst = ctypes.CDLL("libXtst.so.6")
+X.XOpenDisplay.restype = ctypes.c_void_p; X.XOpenDisplay.argtypes = [ctypes.c_char_p]
+X.XSync.argtypes = [ctypes.c_void_p, ctypes.c_int]
+X.XKeycodeToKeysym.restype = ctypes.c_ulong; X.XKeycodeToKeysym.argtypes = [ctypes.c_void_p, ctypes.c_ubyte, ctypes.c_int]
+X.XKeysymToString.restype = ctypes.c_char_p; X.XKeysymToString.argtypes = [ctypes.c_ulong]
+class R8(ctypes.Structure): _fields_ = [("first", ctypes.c_ubyte), ("last", ctypes.c_ubyte)]
+class R16(ctypes.Structure): _fields_ = [("first", ctypes.c_ushort), ("last", ctypes.c_ushort)]
+class Ext(ctypes.Structure): _fields_ = [("major", R8), ("minor", R16)]
+class Range(ctypes.Structure):
+    _fields_ = [("core_requests", R8), ("core_replies", R8), ("ext_requests", Ext), ("ext_replies", Ext),
+                ("delivered_events", R8), ("device_events", R8), ("errors", R8),
+                ("client_started", ctypes.c_int), ("client_died", ctypes.c_int)]
+class Data(ctypes.Structure):
+    _fields_ = [("id_base", ctypes.c_ulong), ("server_time", ctypes.c_ulong), ("client_seq", ctypes.c_ulong),
+                ("category", ctypes.c_int), ("client_swapped", ctypes.c_int),
+                ("data", ctypes.POINTER(ctypes.c_ubyte)), ("data_len", ctypes.c_ulong)]
+Xtst.XRecordAllocRange.restype = ctypes.POINTER(Range)
+Xtst.XRecordCreateContext.restype = ctypes.c_ulong
+Xtst.XRecordCreateContext.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_ulong), ctypes.c_int,
+                                      ctypes.POINTER(ctypes.POINTER(Range)), ctypes.c_int]
+Callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(Data))
+Xtst.XRecordEnableContext.argtypes = [ctypes.c_void_p, ctypes.c_ulong, Callback, ctypes.c_void_p]
+Xtst.XRecordFreeData.argtypes = [ctypes.POINTER(Data)]
+wanted = set(sys.argv[1:])
+control, data = X.XOpenDisplay(None), X.XOpenDisplay(None)
+if not control or not data:
+    sys.exit("Can't open the X display")
+ranges = Xtst.XRecordAllocRange()
+ranges.contents.device_events.first, ranges.contents.device_events.last = 2, 4  # KeyPress to ButtonPress
+all_clients = ctypes.c_ulong(3)
+context = Xtst.XRecordCreateContext(control, 0, ctypes.byref(all_clients), 1, ctypes.byref(ranges), 1)
+X.XSync(control, 0)
+def on_event(_, record):
+    event = record.contents
+    if event.category == 0 and event.data:  # From the server
+        kind, detail = event.data[0], event.data[1]
+        if kind in (2, 3):
+            name = X.XKeysymToString(X.XKeycodeToKeysym(control, detail, 0))
+            state = event.data[28] | (event.data[29] << 8)
+            if name and name.decode() in wanted:
+                print("key" if kind == 2 else "release", name.decode(), state, flush=True)
+        elif kind == 4 and detail in (1, 2, 3):  # Not the scroll wheel
+            print("click", flush=True)
+    Xtst.XRecordFreeData(record)
+callback = Callback(on_event)
+print("ready", flush=True)
+Xtst.XRecordEnableContext(data, context, callback, None)  # Blocks until the display goes away
+"""
+
+MPRIS = ("org.mpris.MediaPlayer2.spotify", "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player")
+VOLUME_STEP = 0.1
+
+
 class Plugin:
     launching = False
     shown_window: int | None = None
@@ -139,12 +412,18 @@ class Plugin:
     # Text from the plugin's text box, typed into Spotify once it's back in front
     pending_text: str | None = None
 
+    # Whether Spotify's search, opened with Menu, is still open (as far as the keys and clicks tell)
+    search_open = False
+    # Menu's key is down: search opens or closes once it's let go
+    search_pressed = False
+
     async def _main(self):
         self.lock = asyncio.Lock()
         self.show_task: asyncio.Task | None = None
         self.watch_task: asyncio.Task | None = None
         async with self.lock:
             await self._release_stale_windows()
+        self.trigger_task = asyncio.create_task(self._watch_trigger_keys())
         await self._watch_running()
 
     async def _watch_running(self):
@@ -158,7 +437,79 @@ class Plugin:
                 was_running = running
             await asyncio.sleep(RUNNING_POLL_SECONDS)
 
+    async def _watch_trigger_keys(self):
+        """Acts on the keys SpotifyDeck's controller layout sends for what Spotify has no working key for."""
+        names = {name for name, _ in TRIGGER_KEYS} | SEARCH_CLOSING_KEYS
+        while True:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "python3", "-I", "-c", KEY_WATCHER, *names, env=session_env(), stdin=asyncio.subprocess.DEVNULL,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, preexec_fn=die_with_parent,
+                )
+                try:
+                    async for line in proc.stdout:
+                        await self._on_watched_input(line.decode(errors="replace").split())
+                finally:
+                    if proc.returncode is None:
+                        proc.terminate()
+                    await proc.wait()
+                decky.logger.warning(f"The controller key watcher stopped ({proc.returncode}), restarting it")
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                decky.logger.exception("The controller key watcher failed, restarting it")
+            # E.g. while Steam restarts and its X display is away
+            await asyncio.sleep(5)
+
+    async def _on_watched_input(self, words: list[str]):
+        if words == ["ready"]:
+            decky.logger.info("Watching for SpotifyDeck's controller keys")
+            return
+        if words == ["click"] or (words[:1] == ["key"] and words[1] in SEARCH_CLOSING_KEYS):
+            self.search_open = False
+            return
+        if words[:1] == ["release"] and self.search_pressed:
+            # Steam holds Ctrl+Alt+Shift as long as Menu is down, and Spotify ignores Ctrl+K with Alt and Shift
+            self.search_pressed = False
+            if self.shown_window is not None:
+                await self._toggle_search()
+            return
+        if words[:1] != ["key"] or len(words) < 3 or self.shown_window is None:
+            return
+        with_modifiers = int(words[2]) & TRIGGER_STATE == TRIGGER_STATE
+        action = TRIGGER_KEYS.get((words[1], with_modifiers))
+        try:
+            if action == "previous":
+                await run("busctl", "--user", "call", *MPRIS, "Previous")
+            elif action == "next":
+                await run("busctl", "--user", "call", *MPRIS, "Next")
+            elif action in ("volume_up", "volume_down"):
+                _, out = await run("busctl", "--user", "get-property", *MPRIS, "Volume")
+                volume = float(out.split()[-1])
+                volume += VOLUME_STEP if action == "volume_up" else -VOLUME_STEP
+                volume = round(min(1.0, max(0.0, volume)), 2)
+                await run("busctl", "--user", "set-property", *MPRIS, "Volume", "d", str(volume))
+            elif action == "search":
+                self.search_pressed = True
+        except Exception:
+            decky.logger.exception(f"Couldn't {action} in Spotify")
+
+    async def _toggle_search(self):
+        try:
+            if self.search_open:
+                await run("xdotool", "key", "Escape")
+                self.search_open = False
+            else:
+                # Spotify ignores the shortcut when Ctrl comes in together with K or goes away with it
+                await run("xdotool", "keydown", "Control_L", "sleep", "0.03", "key", "k", "sleep", "0.03",
+                          "keyup", "Control_L")
+                self.search_open = True
+        except Exception:
+            decky.logger.exception("Couldn't open or close Spotify's search")
+
     async def _unload(self):
+        if getattr(self, "trigger_task", None):
+            self.trigger_task.cancel()
         # Decky may stop the backend before a full hide() finishes, so give the screen back to Steam first
         if self.shown_window is not None:
             await park_pointer()
@@ -198,6 +549,31 @@ class Plugin:
         values = load_settings()
         values[key] = value
         save_settings(values)
+
+    async def prepare_layout(self, steam_id: str, serial: str, controller_type: str, replace: bool) -> dict:
+        """
+        Writes SpotifyDeck's controller layout for one controller, and returns its URL to select it with.
+        A layout file that's already there is kept, so changes made to it in Steam stay. One with another title is
+        a different layout, saved by Steam for this controller: it's only replaced with replace set, and otherwise
+        its title is returned instead of a URL.
+        """
+        path = layout_path(steam_id, serial)
+        url = f"autosave://{path}"
+        if os.path.exists(path):
+            title = layout_title(path)
+            if title == LAYOUT_TITLE:
+                return {"url": url, "title": title}
+            if not replace:
+                return {"url": None, "title": title}
+        template_name = f"{controller_type}_webbrowser.vdf"
+        with open(os.path.join(steam_dir(), "controller_base", "templates", template_name), encoding="utf-8") as f:
+            layout = build_layout(f.read(), f"template://{template_name}", url, steam_id)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            f.write(layout)
+        os.replace(path + ".tmp", path)
+        decky.logger.info(f"Wrote the controller layout {path}")
+        return {"url": url, "title": LAYOUT_TITLE}
 
     async def show(self):
         """Bring Spotify to the front, launching it first if needed."""
