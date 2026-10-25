@@ -12,5 +12,5 @@
     "description": "Adds Spotify to the Steam menu. Opens the Spotify app installed from Discover without adding it as a non-Steam game.",
     "image": "https://raw.githubusercontent.com/Lexodeus/SpotifyDeck/master/assets/screenshot.png"
   },
-  "Changelog": "## 0.1.6 (2026-10-18)\n\n### Fixes\n\n- Pressing the Steam button or the ... button while Spotify is on screen no longer freezes Steam. Spotify now steps aside before the menu opens instead of right after. The 0.1.5 fix only helped in some cases, such as when Spotify had been running for a while."
+  "Changelog": "## 0.2.0 (2026-10-24)\n\n- Controller layout for Spotify on the Steam Deck, set up when you install SpotifyDeck: A plays/pauses, L1/R1 skip songs, D-pad left/right seek 5 seconds, D-pad up/down change Spotify's volume, and Menu opens Spotify's search (press it again to close it). The rest works like Steam's Web Browser layout (trackpad pointer, R2/L2 click). **Controller buttons** in the Quick Access menu lists the buttons and opens the layout in Steam to change it."
 }
